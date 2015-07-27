@@ -1,0 +1,22 @@
+{
+    "name": "microinginer/yii2-cbrf-rates",
+    "keywords": ["yii2", "formatter", "datetime", "human"],
+    "homepage": "https://github.com/microinginer/yii2-cbrf-rates",
+    "type": "yii2-extensions",
+    "require": {
+        "yiisoft/yii2": "2.*"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ruslan Madatov",
+            "email": "ruslanmadatov@yandex.ru"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "microinginer\\CbRFRates\\": "src/"
+        }
+    }
+}

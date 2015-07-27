@@ -1,6 +1,6 @@
 {
     "name": "microinginer/yii2-cbrf-rates",
-    "keywords": ["yii2", "formatter", "datetime", "human"],
+    "keywords": ["yii2", "cbrf", "rates", "курсы", "валюты"],
     "homepage": "https://github.com/microinginer/yii2-cbrf-rates",
     "type": "yii2-extensions",
     "require": {

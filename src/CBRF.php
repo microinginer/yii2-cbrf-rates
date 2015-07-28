@@ -6,6 +6,7 @@ namespace microinginer\CbRFRates;
 
 use yii\base\Component;
 use yii\base\Exception;
+use yii\caching\DummyCache;
 
 /**
  * Class CBRF
@@ -29,7 +30,9 @@ class CBRF extends Component
     /**
      * @var int
      */
-    public $cacheDuration = 86400;
+    public $cacheDuration = 3600;
+
+    private $cache = null;
     /**
      * @var string
      */
@@ -72,19 +75,21 @@ class CBRF extends Component
      */
     public function init ()
     {
-        if (empty(\Yii::$app->cache)) {
+        if ($this->cached && empty(\Yii::$app->cache)) {
             throw new CBRFException("Cache component not found! Please check your config file!");
         }
+
+        $this->cache = (!empty(\Yii::$app->cache) ? \Yii::$app->cache : new DummyCache());
     }
 
-    /**
-     * @param int $duration
-     * @return $this
-     */
     public function cache ($duration = 3600)
     {
         $this->cached = true;
         $this->cacheDuration = $duration;
+
+        if (empty(\Yii::$app->cache)) {
+            throw new CBRFException("Cache component not found! Please check your config file!");
+        }
 
         return $this;
     }
@@ -269,7 +274,7 @@ class CBRF extends Component
     private function getHttpRequest ($url)
     {
         $this->setCacheId($url);
-        $result = \Yii::$app->cache->get($this->cachedId);
+        $result = $this->cache->get($this->cachedId);
 
         if (empty($result)) {
             if (function_exists("curl_init")) {
@@ -283,7 +288,7 @@ class CBRF extends Component
             }
 
             if ($this->cached) {
-                \Yii::$app->cache->set($this->cachedId, $result, $this->cacheDuration);
+                $this->cache->set($this->cachedId, $result, $this->cacheDuration);
             }
         }
         $xml = simplexml_load_string($result);

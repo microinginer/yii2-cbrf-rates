@@ -19,7 +19,7 @@ class CBRF extends Component
     /**
      * @var bool
      */
-    public $cached = true;
+    public $cached = false;
     /**
      * @var string
      */

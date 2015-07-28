@@ -35,6 +35,10 @@ class CBRF extends Component
      */
     private $url = "http://www.cbr.ru/scripts/XML_daily.asp";
     /**
+     * @var string
+     */
+    private $urlDynamic = "http://www.cbr.ru/scripts/XML_dynamic.asp?1=1";
+    /**
      * @var array
      */
     private $allCurrency = [];
@@ -52,13 +56,25 @@ class CBRF extends Component
     private $shortFormat = false;
 
     /**
+     * @var bool
+     */
+    private $withDynamic = false;
+
+    /**
+     * @var array
+     */
+    private $dynamicParams = [];
+
+    /**
      * Initializes the object.
      * This method is invoked at the end of the constructor after the object is initialized with the
      * given configuration.
      */
     public function init ()
     {
-        $this->getDataFromUrl();
+        if (empty(\Yii::$app->cache)) {
+            throw new CBRFException("Cache component not found! Please check your config file!");
+        }
     }
 
     /**
@@ -79,7 +95,7 @@ class CBRF extends Component
      */
     public function all ()
     {
-        $this->getDataFromUrl();
+        $this->getRates();
 
         return $this->allCurrency;
     }
@@ -91,7 +107,7 @@ class CBRF extends Component
      */
     public function one ($currency = 'default')
     {
-        $this->getDataFromUrl();
+        $this->getRates();
 
         $key = ($currency == 'default' ? $this->defaultCurrency : $currency);
 
@@ -142,42 +158,97 @@ class CBRF extends Component
     }
 
     /**
+     * @param array $params
+     * @return array
      * @throws CBRFException
      */
-    private function getDataFromUrl ()
+    public function dynamic (array $params)
     {
-        if (!$result = \Yii::$app->cache->get($this->cachedId)) {
-            if (function_exists("curl_init")) {
-                $curl = curl_init();
-                curl_setopt($curl, CURLOPT_URL, $this->url . "?1=1" . $this->filter);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-                $out = curl_exec($curl);
-                curl_close($curl);
+        $params = array_merge([
+            'id'        => 0,
+            'date_from' => time() - (86400 * 7),
+            'date_to'   => time(),
+        ], $params, $this->dynamicParams);
 
-                $result = $out;
-            } else {
-                $result = file_get_contents($this->url);
-            }
-
-            if ($this->cached) {
-                \Yii::$app->cache->set($this->cachedId, $result, $this->cacheDuration);
-            }
+        if (!is_numeric($params['date_from'])) {
+            $params['date_from'] = strtotime($params['date_from']);
         }
 
-        $xml = simplexml_load_string($result);
+        if (!is_numeric($params['date_to'])) {
+            $params['date_from'] = strtotime($params['date_to']);
+        }
+
+        $params['date_req1'] = date('d/m/Y', $params['date_from']);
+        $params['date_req2'] = date('d/m/Y', $params['date_to']);
+        $params['VAL_NM_RQ'] = $params['id'];
+
+        unset($params['date_to'], $params['date_from'], $params['id']);
+        $urlWithParams = $this->urlDynamic . "&" . http_build_query($params);
+
+        $xml = $this->getHttpRequest($urlWithParams);
+        $data = [];
+        foreach ($xml->Record as $record) {
+            $attribute = $record->attributes();
+            $data[] = [
+                'date'  => strtotime(current($attribute)['Date']),
+                'value' => str_replace(',', '.', current($record->Value)),
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param array $params
+     * @return $this
+     */
+    public function withDynamic (array $params)
+    {
+        $this->withDynamic = true;
+        $this->dynamicParams = $params;
+
+        return $this;
+    }
+
+    /**
+     * @param $cacheId
+     */
+    private function setCacheId ($cacheId)
+    {
+        $this->cachedId = md5($cacheId);
+    }
+
+    /**
+     * @throws CBRFException
+     */
+    private function getRates ()
+    {
+        $urlWithParams = $this->url . "?1=1" . $this->filter;
+
+        $xml = $this->getHttpRequest($urlWithParams);
 
         if (!$xml) throw new CBRFException("Not correct XML");
 
         foreach ($xml->Valute as $val) {
+            $attr = $val->attributes();
             $value = str_replace(',', '.', $val->Value) / $val->Nominal;
             if (!$this->shortFormat) {
+                $id = current($attr)['ID'];
+                $charCode = current($val->CharCode);
                 $this->allCurrency[ current($val->CharCode) ] = [
                     'name'      => current($val->Name),
                     'value'     => $value,
-                    'char_code' => current($val->CharCode),
+                    'char_code' => $charCode,
                     'num_code'  => current($val->NumCode),
                     'nominal'   => current($val->Nominal),
+                    'id'        => $id,
                 ];
+
+                if ($this->withDynamic && (!$this->filterCurrency || array_key_exists($charCode, $this->filterCurrency))) {
+                    $this->allCurrency[ current($val->CharCode) ]['dynamic'] = $this->dynamic([
+                        'id' => $id
+                    ]);
+                }
             } else {
                 $this->allCurrency[ current($val->CharCode) ] = $value;
             }
@@ -191,11 +262,38 @@ class CBRF extends Component
     }
 
     /**
-     * @param $cacheId
+     * @param $url
+     * @return \SimpleXMLElement
+     * @throws CBRFException
      */
-    private function setCacheId ($cacheId)
+    private function getHttpRequest ($url)
     {
-        $this->cachedId .= md5($cacheId);
+        $this->setCacheId($url);
+        $result = \Yii::$app->cache->get($this->cachedId);
+
+        if (empty($result)) {
+            echo($url . "<br>" . $this->cachedId . "<br>");
+            if (function_exists("curl_init")) {
+                $curl = curl_init();
+                curl_setopt($curl, CURLOPT_URL, $url);
+                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+                $result = curl_exec($curl);
+                curl_close($curl);
+            } else {
+                $result = file_get_contents($url);
+            }
+
+            if ($this->cached) {
+                \Yii::$app->cache->set($this->cachedId, $result, $this->cacheDuration);
+            }
+        }
+        $xml = simplexml_load_string($result);
+
+        if (!$xml) {
+            throw new CBRFException("getHttpRequest is broken");
+        }
+
+        return $xml;
     }
 }
 

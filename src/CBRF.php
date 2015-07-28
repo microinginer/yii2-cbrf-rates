@@ -1,8 +1,5 @@
 <?php
-
-
 namespace microinginer\CbRFRates;
-
 
 use yii\base\Component;
 use yii\base\Exception;
@@ -32,6 +29,9 @@ class CBRF extends Component
      */
     public $cacheDuration = 3600;
 
+    /**
+     * @var $cache \yii\caching\Cache
+     */
     private $cache = null;
     /**
      * @var string
@@ -82,6 +82,11 @@ class CBRF extends Component
         $this->cache = (!empty(\Yii::$app->cache) ? \Yii::$app->cache : new DummyCache());
     }
 
+    /**
+     * @param int $duration
+     * @return $this
+     * @throws CBRFException
+     */
     public function cache ($duration = 3600)
     {
         $this->cached = true;

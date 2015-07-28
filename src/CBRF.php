@@ -175,7 +175,7 @@ class CBRF extends Component
         }
 
         if (!is_numeric($params['date_to'])) {
-            $params['date_from'] = strtotime($params['date_to']);
+            $params['date_to'] = strtotime($params['date_to']);
         }
 
         $params['date_req1'] = date('d/m/Y', $params['date_from']);

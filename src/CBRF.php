@@ -278,10 +278,6 @@ class CBRF extends Component
                     ]);
                 }
             } else {
-                if(!is_array($this->allCurrency)){
-                    dump($this);
-                    exit;
-                }
                 $this->allCurrency[current($val->CharCode)] = $value;
             }
         }

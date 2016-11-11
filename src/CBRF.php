@@ -146,6 +146,8 @@ class CBRF extends Component
      */
     public function filter(array $params)
     {
+        $this->filter = '';
+        
         $params = array_merge([
             'date' => '',
             'currency' => '',
@@ -276,6 +278,10 @@ class CBRF extends Component
                     ]);
                 }
             } else {
+                if(!is_array($this->allCurrency)){
+                    dump($this);
+                    exit;
+                }
                 $this->allCurrency[current($val->CharCode)] = $value;
             }
         }
@@ -317,7 +323,7 @@ class CBRF extends Component
         $xml = simplexml_load_string($result);
 
         if (!$xml) {
-            throw new CBRFException("getHttpRequest is broken");
+            throw new CBRFException("getHttpRequest is broken: " . $url);
         }
 
         return $xml;
@@ -349,6 +355,12 @@ class CBRF extends Component
         }
 
         return round($amount * $rates[$fromCur] / $rates[$toCur], $precision);
+    }
+
+    public function getRate($date,$currency )
+    {
+        $rate = $this->filter(['date' => $date, 'currency' => $currency])->short()->all();
+        return $rate[$currency];
     }
 }
 

@@ -146,6 +146,8 @@ class CBRF extends Component
      */
     public function filter(array $params)
     {
+        $this->filter = '';
+        
         $params = array_merge([
             'date' => '',
             'currency' => '',
@@ -300,14 +302,21 @@ class CBRF extends Component
         $result = $this->cache->get($this->cachedId);
 
         if (empty($result)) {
-            if (function_exists("curl_init")) {
-                $curl   = curl_init();
-                curl_setopt($curl, CURLOPT_URL, $url);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-                $result = curl_exec($curl);
-                curl_close($curl);
-            } else {
-                $result = file_get_contents($url);
+            $i = 0;
+            while($i++ < 5){
+                if (function_exists("curl_init")) {
+                    $curl   = curl_init();
+                    curl_setopt($curl, CURLOPT_URL, $url);
+                    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+                    $result = curl_exec($curl);
+                    curl_close($curl);
+                } else {
+                    $result = file_get_contents($url);
+                }
+                if($result){
+                    break;
+                }
+                sleep(1);
             }
 
             if ($this->cached) {
@@ -317,7 +326,7 @@ class CBRF extends Component
         $xml = simplexml_load_string($result);
 
         if (!$xml) {
-            throw new CBRFException("getHttpRequest is broken");
+            throw new CBRFException("getHttpRequest is broken: " . $url);
         }
 
         return $xml;
@@ -349,6 +358,12 @@ class CBRF extends Component
         }
 
         return round($amount * $rates[$fromCur] / $rates[$toCur], $precision);
+    }
+
+    public function getRate($date,$currency )
+    {
+        $rate = $this->filter(['date' => $date, 'currency' => $currency])->short()->all();
+        return $rate[$currency];
     }
 }
 
